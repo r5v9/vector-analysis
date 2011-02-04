@@ -29,7 +29,7 @@ def angle(cmap, reference_cmap):
 def build_references_map(languages):
     references_map = {}    
     for language in languages:
-        references_map[language] = create_count_map(file(language + '.txt').read())
+        references_map[language] = create_count_map(file('../text/' + language + '.txt').read())
     return references_map       
 
 def find_language(text, references_map):
@@ -84,7 +84,7 @@ class TestVectorAnalysis(unittest.TestCase):
         languages = ('english', 'french', 'latin', 'spanish', 'portuguese', 'italian', 'german')
         references_map = build_references_map(languages)
         for language in languages: 
-            text = ' '.join(file(language + '-sample.txt').read().split()[:15])
+            text = ' '.join(file('../text/' + language + '-sample.txt').read().split()[:15])
             self.assertEqual(language, find_language(text, references_map))
 
 if __name__ == '__main__':
