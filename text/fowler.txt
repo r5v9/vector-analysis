@@ -1,0 +1,196 @@
+One of the most common cases of using a TestDouble is when you are communicating with an external service. Typically such services are being maintained by a different team, they may be subject to slow, and unreliable networks, and maybe unreliable themselves. That's why a test double is handy, it stops your own tests from being slow and unreliable. But testing against a double always raises the question of whether the double is indeed an accurate representation of the external service, and what happens if the external service changes its contract?
+
+A good way to deal with this is to run your own tests against the double, but to periodically run a separate set of integration contract tests that checks all the calls against your test doubles return the same results as a call to the external service would. A failure in any of these integration contract tests implies you need to update your test doubles, and probably your code to take into account the service contract change.
+
+These tests need not be run as part of your regular deployment pipeline. Your regular pipeline is based on the rhythm of changes to your code, but these tests need to be based on the rhythm of changes to the external service. Often running just once a day is plenty.
+
+A failure in an integration contract test shouldn't necessarily break the build in the same way that a normal test failure would. It should, however, trigger a task to get things consistent again. This may involve updating the tests and code to bring them back into consistency with the external service. Just as likely it will trigger a conversation with the keepers of the external service to talk about the change and alert them to how their changes are affecting other applications.
+
+This communication with the external service supplier is even more important if this service is being used as part of a production application. In these cases an integration contract change may may break a production application, triggering an emergency fix and an urgent conversation with the supplier team.
+
+To reduce the chances of unexpected breaks in integration contracts, it's useful to move to a Consumer Driven Contracts approach. You can facilitate this by letting the supplier team have copies of your integration contract tests so they can run them as part of their build pipeline.
+
+When testing an external service like this, it's usually best to do so against a test instance of the external service. Occasionally you'll have no choice but to hit the production instance, at that point you'll need to talk to the suppliers to let them know what's happening and be extra careful with what the tests do.
+
+Integration contract tests check the contract of external service calls, but not necessarily the exact data. Often a stub will snapshot a response as at a particular date, since the format of the data matters rather than the actual data. In this case the integration contract test needs to check that the format is the same, even if the actual data has changed.
+
+One of the best way to build these test doubles is to use a SelfInitializingFake.
+
+One of the prevailing assumptions that fans of Continuous Integration have is that builds should be reproducible. By this we mean that at any point you should be able to take some older version of the system that you are working on and build it from source in exactly the same way as you did then.
+
+This isn't called out as a key practices in the sources I usually refer to on the build process. I think that's because it's an underlying assumption - one that's considered so obvious there's no need to explain it.
+
+One of the driving reasons to have reproducible builds is to ensure we can deal with problems in past releases that are still used. If we release software to a customer a year ago, and they now report a serious bug with it, it's important to be able to recreate that software so that we can deliver a fix.
+
+But let's assume a case where you're releasing software every week to a hosted environment. Let's also assume you have a solid Continuous Delivery process and are thus confident that you promulgate bug fix by either waiting until the next release or(if really critical) doing an early release. Do you then still need reproducible builds?
+
+In a scenario where you: receive a bug report, reproduce the bug on head, fix it on head and either wait or immediately release - then you don't. But there are cases when it's still very handy to have reproducible builds.
+
+What happens when you get a bug report and you can't reproduce it. Do you just declare it fixed and move in? I wouldn't be happy with that response. Firstly I'd want to be sure I really understood the bug - so I'd want to check out the released version of the software, build it, and ensure I could then reproduce it. To be confident in reproducing the bug, I'd need to reproduce the build. Furthermore even if I'm confident that the bug got fixed en passant during recent development, I'd still argue that there's at least one test missing. I'd want to write that test and verify that it passes now and fails against the released build.
+
+Another case is a regression. A customer contacts you and says there's a bug now that wasn't there before. Such bugs can hide a long time before they wake up and wave their feelers at you. Maybe it only occurs when the first of the month falls on a Monday. Either way you now have software that you think worked two months ago but now has a bug.
+
+Here having reproducible builds gives you the ability to use DiffDebugging. Your customer is pretty sure that you didn't have this problem two months ago, that was build 20000, you're now on build 28000. So you check out build 20000 and look to see if the bug is there. It isn't so you try build 24000, not there either, so next is 26000. Before long you know the bug first appeared with revision 26543 (modern version control systems have features to help you do this). Now you look at the diffs between revision 26543 and its parent - often this approach makes it much easier to find a bug.
+
+One of the most common arguments in favor of FeatureBranch is that it provides a mechanism for pending features that take longer than a single release cycle. Imagine you are releasing into production every two weeks, but need to build a feature that's going to take three months to complete. How do you use Continuous Integration to keep everyone working on the mainline without revealing a half-implemented feature on your releases? We run into this issue quite a lot and feature toggles are a handy tool to deal with it.
+
+(I've seen a lot of names for this concept tossed around: feature bits, flags, flippers, switches and the like. There seems no generally accepted name yet.)
+
+The basic idea is to have a configuration file that defines a bunch of toggles for various features you have pending. The running application then uses these toggles in order to decide whether or not to show the new feature.
+
+Most of these decisions occur in the user-interface of the application. So if you are building a web application using jsp, you may use a set of jsp tags to surround any user-interface parts of a pending feature.
+
+The implementation of the toggle tag then just passes through the content if the toggle is set to on, and skips it otherwise. Other UI technologies will use different details, but the basic notion of wrapping the pending elements is the same.
+
+This technique works best when the number of entry points to the new feature are small. There could be many screens in the pet survey feature, but if there's only one link on the home page that gets you there, then that's the only element that needs to be protected with the toggle tag. Therefore it's best to limit the entry points as much as you can, but for some features that will be difficult and you'll need lots of toggle tags.
+
+Some features may be like introducing a new pricing algorithm, where there might be no user-interface elements. Here the test of the toggle would be in the application code, it could be as crude as a conditional test, or something more sophisticated like a strategy wired through dependency injection.
+
+Most feature toggles I've heard about are set at run-time, but I've also seen cases set at build time. The advantage of a build time toggle is that none of the new feature's code gets compiled into the released executable, although that's rarely much of an advantage. Run-time toggles make it easier to set up your build pipelines and to run tests with various configurations of features. It also facilitates canary releasing, A/B testing, and makes it easier to roll-back should a new feature misbehave in production.
+
+One danger with feature toggles is an accidental exposure, when someone forgets to wrap the UI feature in a toggle tag. This is awkward to test, since it's difficult to form a test that nothing that should be hidden is visible without calling out the individual elements - which are likely to be forgotten at the same time.
+
+A common question we hear about feature toggles concerns testing - does using feature toggles mean a combinatorial explosion of tests? I think this concern is a red herring. Using feature toggles doesn't mean you have to do any more testing that you need to do with feature branches, it just makes it easier to run the alternatives. The key is to focus testing on the combination of pending features that you expect to deploy together.
+
+It's very important to retire the toggles once the pending features have bedded down in production. This involves removing the definitions on the configuration file and all the code that uses them. Otherwise you will get a pile of toggles that nobody can remember how to use. In one memorable example I heard of, it required making a special recompilation of the linux kernel to handle enough command line switches.
+
+In some cases you can use the basic thinking behind feature toggles, without the actual toggles, by implementing the entry UI elements of a feature last. A danger of this is lack of end-to-end testing, which you can deal with by using subcutaneous testing, or a backdoor into a UI.
+
+Feature toggles can be used for permanent variable configuration too, such as different versions of a software for different contexts. This is a different usage to handling pending features but most of the implementation is the same. If you use feature toggles for other scenarios too, it's wise to clearly separate the pending feature case from the permanent cases.
+
+While feature toggles are a valuable tool in the box, they are a second-best option. The best thing to do with such features is to find a way to gradually release them into production as you are building them. This gradual release get you a return on investment earlier as well as superior feedback. I would always look for a way to do that, and only use feature toggles when we can't find such an option. Most people don't try hard enough to gradually release new capabilities.
+
+One of the steady themes I've seen throughout my career is that of the nature and importance of software development. Recently a prospect told one of our salespeople that "software is like sewage pipes, I want it to work reliably and I don't want to know about the details". This is the kind of approach that Nicholas Carr talked about in IT Doesn't Matter. On a contrasting note we've done work for many businesses where IT has been a clearer strategic enabler to their business, allowing them to enter new markets or significantly increase their market share. So is IT a utility, like sewage pipes, or a strategic asset?
+
+I take that the view is that it can be either, depending on the system. A classic example of a utility IT project is payroll, everyone needs it, but it's something that most people want to 'just work'.
+
+So what is the distinguishing factor between utility and strategic projects? To my mind it's all about whether the underlying business function is a differentiator or not. If how you do this function is a crucial part of what makes you better than the competition, then the software that supports this function needs to be as good as you can make it. Note that this distinction isn't about the software, but the business function. As Ross Pettit puts it "This is not a separation of IT by the nature of the technology, but into what technology does for the host business".
+
+The most important point about this dichotomy is to realize that there are two kinds of software projects and they need to be treated entirely differently. The way you staff, run, and budget a strategic project is entirely different to how you do a utility project. Too often people assume that what is good for one is good for the other - and trouble inevitably follows.
+
+Another consequence is that only a few projects are strategic. The 80/20 rule applies, except it may be more like 95/5. While certainly it's most common for people to not recognize the dichotomy at all, it's also common for people to think that too many projects are strategic.
+
+One of the most important ways in which these efforts differ is where the risks lie. For utility projects the biggest risk is some kind of catastrophic error - you don't want the sewage pipe to break, or to miss payroll. So you need enough attention to make sure that doesn't happen, but other than that you want costs to be as low as possible. However with strategic projects, the biggest risk is not doing something before your competitors do. So you need to be able to react quickly. Cost is much less of an issue because the opportunity cost of not doing something is far greater than costs of software development itself.
+
+This is not a static dichotomy. Business activities that are strategic can become a utility as time passes. Less often, a utility can become strategic if a company figures out how to make that activity a differentiator. (Apple did something like this with the design of personal computers.)
+
+One way this dichotomy helps is in deciding between building custom software and installing a package. Since the definition of utility is that there's no differentiator, the obvious thing is to go with the package. For a strategic function you don't want the same software as your competitors because that would cripple your ability to differentiate.
+
+Often people realize this and buy a package for a utility project, but then spend huge amounts of money customizing this - which is just as wasteful. My view is that for a utility function you buy the package and adjust your business process to match the software. Usually this is politically infeasible, so the workaround is to put a low grade software team to work on it. Provide enough care to avoid catastrophe, but otherwise you don't need a high-grade team.
+
+Another way the dichotomy makes its influence felt is the role of agile methods. Most agilists tend to come from a strategic mindset, and the flexibility and rapid time-to-market that characterizes agile is crucial for strategic projects. For utility projects, however, the advantages of agile don't matter that much. I'm not sure whether using an agile approach for a utility project would be the wrong choice, but I am sure that it doesn't matter that much.
+
+Like many classifications, there's a lot of grey in between. Yet this is one of those rare cases where I think there's a strong argument to turn up the contrast and force more binary thinking. As Ross commented in a discussion of a draft of this post: "'shades of grey' give license to pile things into the wrong category; things that are really utility will be given an inflated importance, rather than dispositioned as the utilities they really are." Forcing a binary decision, tilted to minimize what's in the strategic bucket, would help provide the focus that's often lacking in IT initiatives.
+
+Ross goes so far as to argue that there shouldn't be a single IT department that's responsible for both utility and strategic work. The mindset and management attitudes that are needed for the two are just too different. It's like expecting the same people who design warehouses to design an arts museum.
+
+A common thing you find in agile projects is that the development team sits in a single open team room. It was advocated early on in Extreme Programming and called out as one of primary practices in the second edition. Agilists favor a open team room as it promotes lots of informal and deep communication between people on the team.
+
+Software development is an intense exercise in collaboration. An open space encourages regular conversations and interactions between people. You can see what everyone's doing and easily ask for help when you need to. Often you get serendipitous communication, where you overhear something that's really useful.
+
+Hearing this, some people are concerned about noise, and would prefer private offices. In practice I find that teams don't find noise to be a serious issue. There's usually a hum of conversation going on, after all pair programming often accompanies this style of development. But the conversation isn't usually that distracting, particularly as you're focused on the conversation with your pair. I suspect the reason it's not that distracting is because the team has a common purpose around a collaborative activity. It isn't comparable to an open-plan office where everyone is doing something different.
+
+First make sure it is the right size for the team. While a team room should be open within itself, it should be closed to everyone else. In an ideal world you'd like flexible walls that can insulate one team from another, so an office consists of pods of teams. This is hard to do in practice. Our offices tend to be completely open, with little barriers between teams. This seems to work well-enough, although there are some complaints about the inter-team noise.
+
+Pay attention to natural light. Humans are used to seeing the outside world, and all sorts of natural rhythms work off of light. So it's no surprise that people get very cranky if there isn't enough light about. I've spent plenty of days in enclosed conference rooms, and it certainly wears down my energy.
+
+Provide enough space: about 50 square feet per person (4.5 square meters for those on metric).
+
+With the right kind of space the next key thing is to ensure that the team has control over that space. An important part of agile thinking is that the team is responsible for how it works, and how it organizes its space is part of that. Ideally you want a team to have complete control over their space, with freedom to configure it how they like and reconfigure it at will. Things should be done so it's easy to move things around, because during the project the team will need to change things as the project changes.
+
+The purpose-built tables in our Beijing office have handy baskets for power and other cables.
+
+An immediate consequence of this is to ditch any kind of modular furniture that requires a facilities group to move more than an inch. Most teams I see use simple tables, and you can certainly go cheap here.
+
+The biggest hassle is wires - primarily for power and network access. Ideally you want these underfloor or overhead so that people can easily route wires to the tables, wherever the tables happen to be.
+
+The place to spend money on furniture is for good quality chairs. Programmers spend a lot of time sitting, and any physical damage due to poor posture will have a direct effect on the team's productivity - so don't stint here. It may be that some people will want strange chairs, such as balls or kneeling chairs. Do your best to accommodate them.
+
+Some people are big fans of tables that can be adjusted between a sitting and standing height, as they find that standing for a while helps with back pain. These are harder to find, but worth looking into if your team members need it. Back pain is a common issue, but everyone's pain (and treatment) is different.
+
+You'll need lots of wall space, as agilists love their information radiators. You want plenty of room for story walls, architectural diagrams, whatever people want to stick on the wall. A good bit of this wall space should be whiteboards so people can draw something whenever the mood takes them. Include some wheeled whiteboards. Make sure there's a digital camera around so people can easily record what's on the board. Now that displays are so cheap, consider getting some just for wall displays - this is particularly handy for dynamic displays such as build status. I've seen one team have projectors trained on a wall with various kinds of information displays.
+
+The traditional layout is to have people working around clumps of desks. This gives you regular eye contact with the rest of your team. However I've heard many people sing the praises of the UPod.
+
+People will occasionally need some private space, so ensure there are one or two small conference rooms available, with telephones. These can be used for privacy or when there's a concern about distraction. A large meeting room that the team can gather in for meetings away from the working space is also handy.
+
+I've always been a big proponent of lots of monitor space. Clever software with multiple virtual workspaces is a great feature, but nothing is faster than just moving your eyes. Every workstation should have a couple of 20 inch monitors as a bare minimum. My desk has a pair of 20 inch monitors for my Ubuntu machine and a 25 inch for my mac laptop. I don't think that's at all excessive.
+
+Software development is inherently creative, so expect to see lots of baubly distractions. Toys are commonly found around our teams (as Neal Ford says: "every team needs a plastic kangaroo"). There are good cognitive reasons why this is valuable, it's all about keeping the brain stimulated and creative.
+
+Similarly do provide easy access to snacks and drinks. This helps support informal, conversational breaks in the team area. It's hard to be creative when you have to pay for awful coffee.
+
+If you're working with remote workers, make it easy to set up a video link. Indeed many teams like having permanent video links to any remote workers so you can always maintain that casual video contact.
+
+When I discussed VersionControlTools I said that it was an unscientific agglomeration of opinion. As I was doing it I realized that I could add some spurious but mesmerizing numbers to my analysis by doing a survey. Google's spreadsheet makes the mechanics of conducting a survey really simple, so I couldn't resist.
+
+The graph shows a scatter plot of approval percentage and active responses. As you can see there's a clear cluster around Subversion, git, and Mercurial with high approval and a large amount of responses. It's also clear that there's a big divide in approval between those three, together with Bazaar and Perforce, versus the rest.
+
+Some caveats. This is a survey of opinion of ThoughtWorkers who follow our internal software development discussion list, nothing more. It's possible some of them may have been biased by my previous article (although unlikely, since I've never managed to get my ThoughtBot opinion-control software to work reliably). Opinions of tools are often colored by processes that are more about the organization than the tool itself. But despite these, I think it's an interesting data point.
+
+I should also stress the important point to take away from this isn't the comparison between those close in the numbers, eg comparing git and Mercurial or comparing TFS and ClearCase. Any survey like this has a certain amount of noise in it, and I suspect the noise here is greater than such a difference. The important point is the big approval gap between the leading tools (Subversion, git, and Mercurial) and the laggards - essentially the point in VersionControlTools.
+
+One answer for this is to take a sense of proportion. Lean manufacturing techniques were the underpinning of Toyota's rise from an insignificant company in the 1950's to a global giant in the 2000's. By the 1990's other car companies, and many other manufacturers, were busily copying Toyota's techniques. The general sense is that copying these techniques did much to raise the overall quality of cars in the last decade or so. I would be very surprised if the recent problems at Toyota are enough negate that half-century of success.
+
+But a better answer is to remember that Lean manufacturing is about manufacturing not software. The application of lean ideas to software development is a consequence of MetaphoricQuestioning. Lean ideas can help us come up with better ideas for software development, and as such are valuable. But in the end their usefulness lies with how they are used in software and they should be judged on their record here. Their history in manufacturing, both good and bad, is another industry.
+
+One of the goals that my colleagues and I urge on our clients is that of a completely automated deployment process. Automating your deployment helps reduce the frictions and delays that crop up in between getting the software "done" and getting it to realize its value. Dave Farley and Jez Humble are finishing up a book on this topic - Continuous Delivery. It builds upon many of the ideas that are commonly associated with Continuous Integration, driving more towards this ability to rapidly put software into production and get it doing something. Their section on blue-green deployment caught my eye as one of those techniques that's underused, so I thought I'd give a brief overview of it here.
+
+One of the challenges with automating deployment is the cut-over itself, taking software from the final stage of testing to live production. You usually need to do this quickly in order to minimize downtime. The blue-green deployment approach does this by ensuring you have two production environments, as identical as possible. At any time one of them, let's say blue for the example, is live. As you prepare a new release of your software you do your final stage of testing in the green environment. Once the software is working in the green environment, you switch the router so that all incoming requests go to the green environment - the blue one is now idle.
+
+Blue-green deployment also gives you a rapid way to rollback - if anything goes wrong you switch the router back to your blue environment. There's still the issue of dealing with missed transactions while the green environment was live, but depending on your design you may be able to feed transactions to both environments in such a way as to keep the blue environment as a backup when the green is live. Or you may be able to put the application in read-only mode before cut-over, run it for a while in read-only mode, and then switch it to read-write mode. That may be enough to flush out many outstanding issues.
+
+The two environments need to be different but as identical as possible. In some situations they can be different pieces of hardware, or they can be different virtual machines running on the same (or different) hardware. They can also be a single operating environment partitioned into separate zones with separate IP addresses for the two slices.
+
+An advantage of this approach is that it's the same basic mechanism as you need to get a hot-standby working. Hence this allows you to test your disaster-recovery procedure on every release. (I hope that you release more frequently than you have a disaster.)
+
+The fundamental idea is to have two easily switchable environments to switch between, there are plenty of ways to vary the details. One project did the switch by bouncing the web server rather than working on the router. Another variation would be to use the same database, making the blue-green switches for web and domain layers.
+
+This technique has been "out there" for ages, but I don't see it used as often as it should be. Some foggy combination of Dan North and Jez Humble came up with the name.
+
+If you spend time talking to software developers about tools, one of the biggest topics I hear about are version control tools. Once you've got to the point of using version control tools, and any competent developers does, then they become a big part of your life. Version tools are not just important for maintaining a history of a project, they are also the foundation for a team to collaborate. So it's no surprise that I hear frequent complaints about poor version control tools. In our recent ThoughtWorks technology radar, we called out two items as version control tools that enterprises should be assessing for use: Subversion and Distributed Version Control Systems (DVCS). Here I want to expand on that, summarizing many discussions we've had internally about version control tools.
+
+But first some pinches of salt. I wrote this piece based on an unscientific agglomeration of conversations with my colleagues inside ThoughtWorks and various friends and associates outside. I haven't engaged in any rigorous testing or structured comparisons, so like most of my writing this is based on AnecdotalEvidence. My personal experience in recent years is mostly subversion and mercurial, but my usage patterns are not typical of a software development team. Overwhelmingly my contacts like to work in an agile-xp approach (even if many sniff at the label) and need tools that support that work style. I expect many people to be annoyed by this article. I hope that annoyance will lead to good articles that I can link to.
+
+Many tools fail to pass the recommendability threshold. There are two reasons why: poor capability or poor visibility.
+
+Many tools garner consistent complaints from ThoughtWorkers about their lack of capability. (ThoughtWorkers being what they are, all tools, including the preferred set, get some complaints. Those behind the threshold get mostly complaints.) Two in particular generate a lot of criticism: ClearCase (from IBM) and TFS (from Microsoft). One reason they get a lot of criticism is that they are very popular on client sites, often with company policies mandating their use (I'll describe a coping strategy for that at the end).
+
+It's fair to say that often these problems are compounded by company policies around using VCS. I've heard of some truly bizarre work-flows imposed on teams that make it a constant hurdle to get anything done. Since the VCS is the tool that enforces these work-flows, it does tend to get tarred with that brush.
+
+I'm not going to go into details about the problems the poor-capability tools have here, that would be another article. (This has probably made me even more unpopular in IBM and Microsoft as it is.) I will, at least for the moment, leave it with the fact that developers I respect have worked extensively with, and do not recommend, these products.
+
+The second reason for shuffling a tool behind the recommendability threshold is that I don't hear many comments about some tools. This is an issue because less-popular tools make it difficult to find developers who know how to use them or want to find out. There are many reasons why otherwise good tools can fall behind there. I used to hear people say good things about Perforce, but now the feeling seems to be that it doesn't have compelling advantages over Subversion, let alone the DVCSs. Speaking of DVCSs, there are more than just the two I've highlighted here. Bazaar, in particular, is one I occasionally hear good things about, but again I hear about it much less often then git or Mercurial.
+
+Before I finish with those behind the threshold, I just want to say a few things about a particularly awful tool: Visual Source Safe, or as I call it: Visual Source Shredder. We see this less often now, thank goodness, but if you are using it we'd strongly suggest you get off it. Now. Not just is it a pain to use, I've heard too many tales of repository corruption to trust it with anything more valuable than foo.txt.
+
+So this leaves three tools that my contacts are generally happy with. I find it interesting that all three are open-source. Choosing between these tools involves first deciding between a centralized or distributed VCS model and then, if you chose DVCS, choosing between git and mercurial.
+
+Most of the time, the choice between centralized and distributed rests on how skilled and disciplined the development team is. A distributed system opens up lots of flexibility in work-flow, but that flexibility can be dangerous if you don't have the maturity to use it well. Subversion encourages a simple central repository model, discouraging large scale branching. In an environment that's using Continuous Integration, which is how most of my friends like to work, that model fits reasonably well. As a result Subversion is a good choice for most environments.
+
+And although DVCSs give you lots of flexibility in how you arrange your work-flows, most people I know still base their work patterns on the notion of a shared mainline repository that's used with Continuous Integration. Although modern VCS have almost magic tools to merge different people's changes, these merges are still just merging text. Continuous Integration is still necessary to get semantic consistency. So as a result even a team using DVCS usually still has the notion of the central master repository.
+
+Subversion has three main downsides compared to its cooler distributed cousins.
+
+Because distributed systems always give you a local disk copy of the whole repository, this means that repository operations are always fast as they don't involve network calls to central servers. This is a palpable difference if you are looking at logs, diffing to old revisions, and anything else that involves the full repository. If this is noticeable on my home network, it is a huge issue if your repository is on another continent - as we find with our distributed projects.
+
+If you travel away from your network connection to the repository, a distributed system will still allow you to work with the repository. You can commit checkpoints of your work, browse history, and compare revisions on an airplane without a network connection.
+
+The last downside is more of a social issue than a true tool issue. DVCS encourages quick branching for experimentation. You can do branches in Subversion, but the fact that they are visible to all discourages people from opening up a branch for experimental work. Similarly a DVCS encourages check-pointing of work: committing incomplete changes, that may not even compile or pass tests, to your local repository. Again you could do this on a developer branch in Subversion, but the fact that such branches are in the shared space makes people less likely to do so.
+
+This last point also leads to the argument against a DVCS, that it encourages wanton branching, that feels good early on but can easily lead you to merge doom. In particular the FeatureBranch approach is a popular one that I don't encourage. As with similar comments earlier I must point out that reckless branching isn't something that's particular to one tool. I've often heard people in ClearCase environments complain of the same issue. But DVCSs encourage branching, and that's the major reason why I indicate that team needs more skill to use a DVCS well.
+
+There is one particular case where subversion is the better choice even for a team that skilled at using a DVCS. This case is where the artifacts you're collaborating on are binary and cannot be merged by the VCS - for example word documents or presentation decks. In this case you need to revert to pessimistic locking with single-writer checkouts - and that requires a centralized system.
+
+Here's a common misconception about agile methods. It centers on the way user stories are created and flow through the development activity. The misconception is that the product owner (or business analysts) creates user stories and then put them in front of developers to implement. The notion is that this is a flow from product owner to development, with the product owner responsible for determining what needs to be done and the developers how to do it.
+
+A justification for this approach is that this separates the responsibilities along the lines of competence. The product owner knows the business, what the software is for, and thus what needs to be done. The developers know technology and know how to do things, so they can figure out how to realize the demands of the product owner.
+
+This notion of product owners coming up with DecreedStories is a profound misunderstanding of the way agile development should work. When we were brainstorming names at Snowbird, I remember Kent suggesting "conversational". This emphasized the fact that the heart of our thinking was of an on-going conversation between customers and developers about how a development project should proceed.
+
+In terms of coming up with stories, what this means is that they are always something to be refined through conversation - and that developers should play an active role in helping that definition.
+
+This is the Negotiable principle in Bill Wake's INVEST test for stories. Any member of an agile team can create stories and suggest modifications. It may be that just a few members of a team gravitate to writing most of the stories. That's up to the team's self-organization as to how they want that to happen. But everyone should be engaged in coming up and refining stories. (This involvement is in addition to the develpers' responsibility to estimate stories.)
+
+The product owner does have a special responsibility. In the end the product owner is the final decider on stories, particularly their prioritization. This reflects the fact that the product owner should be the best person to judge that slippery attribute of business value. But having a final decision maker should never stop others from participating, and should not lead people astray into a decreed model of stories.
+
