@@ -18,7 +18,7 @@ def reformat(text):
         n = i + random.randint(3, 5)
         t += '. '.join(sentences[i:n]) + '.\n\n'
         i = n
-    return t
+    return t[:-3]
 
 def random_text(text, n):
     cmap = create_continuation_map(text)
