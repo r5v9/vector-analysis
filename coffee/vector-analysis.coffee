@@ -26,7 +26,7 @@ inner_product = (cmap, ref_cmap) ->
 angle = (cmap, ref_cmap) ->
     inner_product(cmap, ref_cmap) / ( modulus(cmap, ref_cmap) * modulus(ref_cmap, ref_cmap) )
 
-get_best_language_match = (ref_text, language, languages) ->
+get_best_language_match = (ref_text, languages) ->
     ref_cmap = generate_cmap(ref_text)
     max_language = 'unknown'
     max_angle = -Number.MAX_VALUE
@@ -34,7 +34,7 @@ get_best_language_match = (ref_text, language, languages) ->
     for lang in languages
         cmap = generate_cmap(fs.readFileSync('../text/' + lang + '.txt', 'utf-8'))
         a = angle(cmap, ref_cmap)
-        console.log(language + ' in ' + lang + ': ' + a)
+        console.log('\t' + lang + ': ' + a)
         if a > max_angle
             max_language = lang
             max_angle = a
@@ -43,10 +43,11 @@ get_best_language_match = (ref_text, language, languages) ->
 
 analyse_languages = (languages) ->
     for language in languages
-        matched = get_best_language_match(fs.readFileSync('../text/' + language + '-sample.txt', 'utf-8'), language, languages)
+        console.log(language)
+        matched = get_best_language_match(fs.readFileSync('../text/' + language + '-sample.txt', 'utf-8'), languages)
         if matched != language
-            console.log("ERROR: " + language + " != " + matched)
+            console.log("\tERROR: " + language + " != " + matched)
         else
-            console.log("HIT: " + language + " == " + matched)
+            console.log("\tHIT: " + language + " == " + matched)
 
 analyse_languages(['english', 'french', 'latin', 'spanish', 'portuguese', 'italian', 'german'])
